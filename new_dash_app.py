@@ -1280,11 +1280,31 @@ if uploaded_file:
             
                     if (pd.notna(defensive_skill) and defensive_skill != 'Raider self out' and pd.isna(defender_name)):
                         qc_failed = True
-                        print(f"❌ {row['Event_Number']}: 'Defensive Skill' present but Defender(s) is missing")
+                        print(f"❌ {row['Event_Number']}: 'Defensive Skill' present but Defender(s) is missing\n")
                 if not qc_failed:
                     print("QC 26: ✅ All rows are correct.\n")
                     
             defensive_skill_defender_name(df)
+
+
+            # QC 27: Bonus Restriction for Defender Count (1–5)
+
+            def qc27_bonus_restriction(df):
+            
+                df = df.replace(r'^\s*$', pd.NA, regex=True)
+                qc27_error = False
+            
+                for _, row in df.iterrows():
+                    if row['Number_of_Defenders'] in [1, 2, 3, 4, 5]:
+                        if not (row['Bonus'] == 'No' and (pd.isna(row['Type_of_Bonus']) or row['Type_of_Bonus'] == "")):
+                            qc27_error = True
+                            print(f"❌ {row['Event_Number']}: Number_of_Defenders is {row['Number_of_Defenders']}, so Bonus must be 'No' and Type_of_Bonus must be Empty\n")
+            
+                if not qc27_error:
+                    print("QC 27: ✅ All rows are correct.\n")
+            
+            
+            qc27_bonus_restriction(df)
 
 # ======================================================================================            
             # Event_Number formatting
@@ -1356,6 +1376,7 @@ if uploaded_file:
         except Exception as e:
             sys.stdout = sys.__stdout__
             st.error(f"❌ An error occurred: {e}")
+
 
 
 
