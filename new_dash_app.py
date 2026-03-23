@@ -1305,24 +1305,6 @@ if uploaded_file:
             
             qc27_bonus_restriction(df)
 
-            # QC 28: Defender 2 Check (Unsuccessful, Defender selfout, not Raider selfout)
-            
-            def qc_28_check(df):
-                # Clean empty/blank values
-                df = df.replace(r'^\s*$', pd.NA, regex=True)
-                errors_found = False
-            
-                for _, row in df.iterrows():
-                    if (row['Outcome'] == 'Unsuccessful' and row['Attacking_Skill'] == 'Defender self out' and
-                        row['Defensive_Skill'] not in ['Raider self out', 'Push']) and pd.isna(row['Defender_2_Name']) :
-                            print(f"❌ {row['Event_Number']}: Defender 2 is NOT tagged.\n")
-                            errors_found = True
-            
-                if not errors_found:
-                    print("QC 28: ✅ All rows are correct!\n")
-
-            qc_28_check(df)
-
 # ======================================================================================            
             # Event_Number formatting
             df['Event_Number'] = (
