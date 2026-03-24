@@ -1251,14 +1251,13 @@ if uploaded_file:
 
                 for _, row in df.iterrows():
                     # Rule 1
-                    if row['Attacking_Skill'] == 'Defender self out' and row['Number_of_Defenders_Self_Out'] == 0:
+                    if row['Attacking_Skill'] == 'Defender self out' and row['Number_of_Defenders_Self_Out'] == 0 and row['Raiding_Self_Out_Points'] == 0:
                         print(f"❌ {row['Event_Number']}: 'Defender self out' requires 'Number_of_Defenders_Self_Out' > 0. Please check.\n")
-                        
                         qc_failed = True
-
+            
                     # Rule 2
-                    if row['Attacking_Skill'] != 'Defender self out' and row['Number_of_Defenders_Self_Out'] != 0:
-                        print(f"❌ {row['Event_Number']}: Attacking Skill is not 'Defender self out' then 'Number_of_Defenders_Self_Out' must be 0. Please check.\n")
+                    if (row['Raiding_Touch_Points'] == 1 and row['Raiding_Self_Out_Points'] == 1 and row['Attacking_Skill'] == 'Defender self out'):
+                        print(f"❌ {row['Event_Number']}: Attacking Skill Must not be 'Defender Selfout'\n")
                         qc_failed = True
 
                 if not qc_failed:
