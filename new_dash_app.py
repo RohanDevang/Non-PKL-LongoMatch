@@ -1256,7 +1256,7 @@ if uploaded_file:
                         qc_failed = True
             
                     # Rule 2
-                    if (row['Raiding_Touch_Points'] == 1 and row['Raiding_Self_Out_Points'] == 1 and row['Attacking_Skill'] == 'Defender self out'):
+                    if (row['Raiding_Touch_Points'] >= 1 and row['Raiding_Self_Out_Points'] >= 1 and row['Attacking_Skill'] == 'Defender self out'):
                         print(f"❌ {row['Event_Number']}: Attacking Skill Must not be 'Defender Selfout'\n")
                         qc_failed = True
 
