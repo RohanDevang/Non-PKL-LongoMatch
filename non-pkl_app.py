@@ -277,8 +277,8 @@ if uploaded_file:
             
             # ------------- Defensive_Skill --------------
 
-            ds_skill_cols = ['Body hold', 'Ankle hold', 'Single Thigh hold', 'Double Thigh Hold', 'Push', 'Dive', 'Block',
-                                'Chain_def', 'Follow', 'Raider self out']
+            ds_skill_cols = ['Body hold', 'Ankle hold', 'Single Thigh hold', 'Double Thigh Hold', 'Push', 'Dive',
+                             'Block','Chain_def', 'Follow', 'Raider self out']
 
             # 1. Clean and convert to integers (0/1)
             for col in ds_skill_cols:
@@ -765,10 +765,9 @@ if uploaded_file:
                 errors_found = False
                 for idx in range(2, len(df)):
                     if df.at[idx, "Raid_Number"] == 3 and df.at[idx - 2, "Outcome"] != "Empty":
-                        print(
-                            f"❌ {df.at[idx - 2, 'Event_Number']}: → Outcome must be 'Empty' "
-                            f"(Because {df.at[idx, 'Event_Number']} has Raid_Number = 3)\n"
-                        )
+
+                        print(f"❌ {df.at[idx - 2, 'Event_Number']}: → Outcome must be 'Empty' "
+                            f"(Because {df.at[idx, 'Event_Number']} has Raid_Number = 3)\n")
                         errors_found = True
 
                 if not errors_found:
@@ -835,8 +834,7 @@ if uploaded_file:
                     if mismatch.any():
                         for idx, row in df[mismatch].iterrows():
 
-                            print(f"❌ {row['Event_Number']}: → {label} mismatch "
-                                  f"(Expected: {df.loc[idx, cols].sum()}, Found: {row[total_col]})\n")
+                            print(f"❌ {row['Event_Number']}: → {label} mismatch (Expected: {df.loc[idx, cols].sum()}, Found: {row[total_col]})\n")
                     else:
                         print(f"QC 9: ✅ All rows are Valid for {label}\n")
 
@@ -898,8 +896,7 @@ if uploaded_file:
                 if bad.any():
                     for idx in df.index[bad]:
 
-                        print(f"❌ {df.at[idx, 'Event_Number']}: Number_of_Defenders is "
-                              f"--> {df.at[idx, 'Number_of_Defenders']}, Check \n")
+                        print(f"❌ {df.at[idx, 'Event_Number']}: Number_of_Defenders is --> {df.at[idx, 'Number_of_Defenders']}, Check \n")
                 else:
                     print("QC 13: ✅ All rows are Valid.\n")
 
@@ -1005,9 +1002,9 @@ if uploaded_file:
                     print("QC 18: ✅ Defensive_Skill and QoD_Skill are aligned correctly.\n")
                 else:
                     if not type1.empty:
-                        print(f"❌ [Type 1]: {type1['Event_Number'].tolist()} → Defensive_Skill present but QoD_Skill missing.\n")
+                        print(f"❌ {type1['Event_Number'].tolist()} → Defensive_Skill present but QoD_Skill missing.\n")
                     if not type2.empty:
-                        print(f"❌ [Type 2]: {type2['Event_Number'].tolist()} → QoD_Skill present but Defensive_Skill missing.\n")
+                        print(f"❌ {type2['Event_Number'].tolist()} → QoD_Skill present but Defensive_Skill missing.\n")
 
 
             def qc_19_bonus_type_consistency(df) -> None:
@@ -1080,8 +1077,7 @@ if uploaded_file:
                         if not _is_empty(row[col]):
                             print(
                                 f"❌ {row['Event_Number']}: When Outcome='Successful', Bonus='Yes', and "
-                                f"Raiding_Team_Points=1, all skill columns must be empty. "
-                                f"But '{col}' has value '{row[col]}'.\n")
+                                f"Raiding_Team_Points = 1, all skill columns must be empty. But '{col}' has value '{row[col]}'.\n")
                             issues_found = True
 
                 if not issues_found:
@@ -1133,16 +1129,16 @@ if uploaded_file:
 
                 for _, row in df.iterrows():
                     # Rule 1: 'Defender self out' needs Number_of_Defenders_Self_Out > 0
-                    if (row["Attacking_Skill"] == "Defender self out"
-                            and row["Number_of_Defenders_Self_Out"] == 0
-                            and row["Raiding_Self_Out_Points"] == 0):
+                    if (row["Attacking_Skill"] == "Defender self out" and
+                        row["Number_of_Defenders_Self_Out"] == 0 and row["Raiding_Self_Out_Points"] == 0):
+
                         print(f"❌ {row['Event_Number']}: 'Defender self out' requires 'Number_of_Defenders_Self_Out' > 0. Please check.\n")
                         qc_failed = True
 
                     # Rule 2: Touch + Self-out points shouldn't coexist with 'Defender self out'
-                    if (row["Raiding_Touch_Points"] >= 1
-                            and row["Raiding_Self_Out_Points"] >= 1
-                            and row["Attacking_Skill"] == "Defender self out"):
+                    if (row["Raiding_Touch_Points"] >= 1 and row["Raiding_Self_Out_Points"] >= 1 and
+                        row["Attacking_Skill"] == "Defender self out"):
+
                         print(f"❌ {row['Event_Number']}: Attacking Skill Must not be 'Defender Selfout'\n")
                         qc_failed = True
 
@@ -1156,9 +1152,9 @@ if uploaded_file:
                 qc_failed = False
 
                 for _, row in normalised.iterrows():
-                    if (pd.notna(row["Defensive_Skill"])
-                            and row["Defensive_Skill"] != "Raider self out"
-                            and pd.isna(row["Defender_1_Name"])):
+                    if (pd.notna(row["Defensive_Skill"]) and
+                                 row["Defensive_Skill"] != "Raider self out" and pd.isna(row["Defender_1_Name"])):
+                        
                         print(f"❌ {row['Event_Number']}: 'Defensive Skill' present but Defender(s) is missing\n")
                         qc_failed = True
 
@@ -1286,4 +1282,4 @@ if uploaded_file:
         except Exception as e:
             sys.stdout = sys.__stdout__
             st.error(f"❌ An error occurred: {e}")
-
+            
