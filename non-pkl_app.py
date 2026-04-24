@@ -1057,7 +1057,7 @@ if uploaded_file:
                 if not flagged.empty:
                     for _, row in flagged.iterrows():
                         bad_cols = _non_empty_cols(row, cols_to_check)
-                        print(f"❌ {row['Event_Number']}: Found values in {', '.join(bad_cols)} — must be empty.")
+                        print(f"❌ {row['Event_Number']}: Found values in {', '.join(bad_cols)} — must be empty.\n")
                 else:
                     print("QC 21: ✅ All rows are Valid.\n")
 
