@@ -3,6 +3,8 @@ import pandas as pd
 import io
 import re
 import sys
+from openpyxl import load_workbook
+from openpyxl.styles import Alignment, PatternFill, Font, Border
 
 # ---------------------------
 # Streamlit UI
@@ -870,13 +872,23 @@ if uploaded_file:
                       "Defending")
 
 
-            def qc_11_defending_self_out_limit(df) -> None:
-                """QC 11: Defending_Self_Out_Points must not exceed 1."""
-                bad = df["Defending_Self_Out_Points"] > 1
-                if bad.any():
-                    for msg in "❌ " + df.loc[bad, "Event_Number"].astype(str) + "  Check 'Raider self out'\n":
+            def qc_11_defending_points_limit(df) -> None:
+                """QC 11: Defending_Self_Out_Points and Defending_Capture_Points must not exceed 1."""
+                errors_found = False
+
+                bad_self_out = df["Defending_Self_Out_Points"] > 1
+                if bad_self_out.any():
+                    for msg in "❌ " + df.loc[bad_self_out, "Event_Number"].astype(str) + "  Check 'Raider self out'\n":
                         print(msg)
-                else:
+                    errors_found = True
+
+                bad_capture = df["Defending_Capture_Points"] > 1
+                if bad_capture.any():
+                    for msg in "❌ " + df.loc[bad_capture, "Event_Number"].astype(str) + "  Check 'Defending Capture Points'\n":
+                        print(msg)
+                    errors_found = True
+
+                if not errors_found:
                     print("QC 11: ✅ All rows are Valid.\n")
 
 
@@ -1148,12 +1160,11 @@ if uploaded_file:
 
             def qc_26_defensive_skill_needs_defender(df) -> None:
                 """QC 26: Defensive_Skill (except 'Raider self out') requires a Defender_1_Name."""
-                normalised = df.replace(r"^\s*$", pd.NA, regex=True)
                 qc_failed = False
 
-                for _, row in normalised.iterrows():
-                    if (pd.notna(row["Defensive_Skill"]) and
-                                 row["Defensive_Skill"] != "Raider self out" and pd.isna(row["Defender_1_Name"])):
+                for _, row in df.iterrows():
+                    if (not _is_empty(row["Defensive_Skill"]) and
+                                 row["Defensive_Skill"] != "Raider self out" and _is_empty(row["Defender_1_Name"])):
                         
                         print(f"❌ {row['Event_Number']}: 'Defensive Skill' present but Defender(s) is missing\n")
                         qc_failed = True
@@ -1164,10 +1175,9 @@ if uploaded_file:
 
             def qc_27_bonus_restriction_by_defender_count(df) -> None:
                 """QC 27: When Number_of_Defenders is 1–5, Bonus must be 'No' and Type_of_Bonus empty."""
-                normalised = df.replace(r"^\s*$", pd.NA, regex=True)
                 qc_failed = False
 
-                for _, row in normalised.iterrows():
+                for _, row in df.iterrows():
                     if row["Number_of_Defenders"] in range(1, 6):
                         if not (row["Bonus"] == "No" and _is_empty(row["Type_of_Bonus"])):
 
@@ -1179,13 +1189,27 @@ if uploaded_file:
                     print("QC 27: ✅ All rows are Valid.\n")
 
 
+            def qc_28_raider_self_out_skill_check(df) -> None:
+                """QC 28: When Raider_Self_Out = 1, QoD_Skill and Counter_Action_Skill must be empty."""
+                errors_found = False
+
+                for _, row in df.iterrows():
+                    if row['Raider_Self_Out'] == 1:
+                        if not _is_empty(row['QoD_Skill']) or not _is_empty(row['Counter_Action_Skill']):
+                            print(f"❌ {row['Event_Number']}: QoD_Skill and Counter_Action_Skill must be empty when 'Raider Self Out'.\n")
+                            errors_found = True
+
+                if not errors_found:
+                    print("QC 28: ✅ All rows are Valid.\n")
+
+
             # ---------------------------------------------
             #  Main Runner
             # ---------------------------------------------
 
             def run_all_quality_checks(df: pd.DataFrame) -> None:
 
-                """Execute all 27 quality checks in order on *df*."""
+                """Execute all 28 quality checks in order on *df*."""
 
                 qc_01_event_sequence(df)
                 qc_02_empty_columns(df)
@@ -1197,7 +1221,7 @@ if uploaded_file:
                 qc_08_raid2_empty_requires_raid1_empty(df)
                 qc_09_points_match(df)
                 qc_10_outcome_needs_points(df)
-                qc_11_defending_self_out_limit(df)
+                qc_11_defending_points_limit(df)
                 qc_12_raid_length(df)
                 qc_13_defenders_positive(df)
                 qc_14_skill_consistency(df)
@@ -1214,6 +1238,7 @@ if uploaded_file:
                 qc_25_defender_self_out_rules(df)
                 qc_26_defensive_skill_needs_defender(df)
                 qc_27_bonus_restriction_by_defender_count(df)
+                qc_28_raider_self_out_skill_check(df)
 
             run_all_quality_checks(df)
 
@@ -1222,10 +1247,55 @@ if uploaded_file:
             df['Event_Number'] = (df['Event_Number'].str.extract(r'(\d+)')[0].astype(int).map(lambda x: f"E{x:03d}"))
             # ──────────────────────────────────────────────
 
-            # Prepare final CSV in memory (no temp file needed)
-            csv_buffer = io.BytesIO()
-            df.to_csv(csv_buffer, index=False)
-            csv_buffer.seek(0)
+            # Prepare final Excel in memory
+            excel_buffer = io.BytesIO()
+            df.to_excel(excel_buffer, index=False, engine='openpyxl')
+            excel_buffer.seek(0)
+
+            # ---- Apply Excel formatting ----
+            wb = load_workbook(excel_buffer)
+            ws = wb.active
+
+            # Freeze Header Row
+            ws.freeze_panes = "A2"
+
+            # Styles
+            center_align = Alignment(horizontal="center", vertical="center")
+            header_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+            header_font = Font(bold=True)
+            no_border = Border()
+
+            # Apply styles to all cells
+            for row in ws.iter_rows():
+                for cell in row:
+                    cell.alignment = center_align
+                    cell.border = no_border
+
+            # Header styling
+            for cell in ws[1]:
+                cell.fill = header_fill
+                cell.font = header_font
+
+            # Add filter
+            ws.auto_filter.ref = ws.dimensions
+
+            # Auto-adjust column width
+            for col in ws.columns:
+                col_letter = col[0].column_letter
+                max_length = len(str(col[0].value)) if col[0].value else 0
+                for cell in col:
+                    try:
+                        if cell.value:
+                            max_length = max(max_length, len(str(cell.value)))
+                    except:
+                        pass
+                adjusted_width = max_length + 5
+                ws.column_dimensions[col_letter].width = min(adjusted_width, 50)
+
+            # Save formatted workbook back to buffer
+            excel_buffer = io.BytesIO()
+            wb.save(excel_buffer)
+            excel_buffer.seek(0)
 
             # Reset stdout back to default
             sys.stdout = sys.__stdout__
@@ -1249,7 +1319,7 @@ if uploaded_file:
             final_rows, final_cols = df.shape if df is not None else (0, 0)
             st.write(f"**Final Total rows:** `{final_rows}` | **Final Total columns:** `{final_cols}`")
 
-            # Show first 5 rows of final CSV
+            # Show first 5 rows of final file
             st.subheader("Processed File Preview")
             st.dataframe(df, height=210)
 
@@ -1269,14 +1339,14 @@ if uploaded_file:
             """,
             unsafe_allow_html=True)
             
-            st.write(f"**File Name:** `tagged_file.csv`")
+            st.write(f"**File Name:** `tagged_file.xlsx`")
 
             # Download button
             st.download_button(
-                label="Download Processed CSV",
-                data=csv_buffer,
-                file_name="tagged_file.csv",
-                mime="text/csv",
+                label="Download Processed Excel",
+                data=excel_buffer,
+                file_name="tagged_file.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True)
 
         except Exception as e:
