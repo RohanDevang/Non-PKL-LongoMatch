@@ -1273,7 +1273,7 @@ if uploaded_file:
 
             # Header styling
             for cell in ws[1]:
-                cell.fill = header_fill
+                # cell.fill = header_fill
                 cell.font = header_font
 
             # Add filter
