@@ -1196,7 +1196,12 @@ if uploaded_file:
                 for _, row in df.iterrows():
                     if row['Raider_Self_Out'] == 1 or row['Attacking_Skill'] == 'Defender self out':
                         if not _is_empty(row['QoD_Skill']) or not _is_empty(row['Counter_Action_Skill']):
-                            print(f"❌ {row['Event_Number']}: QoD_Skill and Counter_Action_Skill must be empty when 'Raider Self Out'.\n")
+
+                            if row['Raider_Self_Out'] == 1:
+                                print(f"❌ {row['Event_Number']}: QoD_Skill and Counter_Action_Skill must be empty when 'Raider Self Out'.\n")
+                            
+                            if row['Attacking_Skill'] == 'Defender self out':
+                                print(f"❌ {row['Event_Number']}: QoD_Skill and Counter_Action_Skill must be empty when 'Defender Self Out'.\n")
                             errors_found = True
 
                 if not errors_found:
