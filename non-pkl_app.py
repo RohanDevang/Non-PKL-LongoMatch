@@ -1141,17 +1141,15 @@ if uploaded_file:
 
                 for _, row in df.iterrows():
                     # Rule 1: 'Defender self out' needs Number_of_Defenders_Self_Out > 0
-                    if (row["Attacking_Skill"] == "Defender self out" and
-                        row["Number_of_Defenders_Self_Out"] == 0 and row["Raiding_Self_Out_Points"] == 0):
+                    if (row["Attacking_Skill"] == "Defender self out" and row["Number_of_Defenders_Self_Out"] == 0 and row["Raiding_Self_Out_Points"] == 0):
 
-                        print(f"❌ {row['Event_Number']}: 'Defender self out' requires 'Number_of_Defenders_Self_Out' > 0. Please check.\n")
+                        print(f"❌ {row['Event_Number']}: 'Defender self out' requires 'Number_of_Defenders_Self_Out' > 0.\n")
                         qc_failed = True
 
                     # Rule 2: Touch + Self-out points shouldn't coexist with 'Defender self out'
-                    if (row["Raiding_Touch_Points"] >= 1 and row["Raiding_Self_Out_Points"] >= 1 and
-                        row["Attacking_Skill"] == "Defender self out"):
+                    if (row["Raiding_Touch_Points"] >= 1 and row["Raiding_Self_Out_Points"] >= 1 and row["Attacking_Skill"] == "Defender self out"):
 
-                        print(f"❌ {row['Event_Number']}: Attacking Skill Must not be 'Defender Selfout'\n")
+                        print(f"❌ {row['Event_Number']}: Attacking Skill Must not be 'Defender Self Out'\n")
                         qc_failed = True
 
                 if not qc_failed:
@@ -1188,22 +1186,17 @@ if uploaded_file:
                 if not qc_failed:
                     print("QC 27: ✅ All rows are Valid.\n")
 
-
-            def qc_28_raider_self_out_or_def_self_out_check(df) -> None:
+            
+            def qc_28_raider_self_out_check(df) -> None:
                 """QC 28: When Raider_Self_Out = 1, QoD_Skill and Counter_Action_Skill must be empty."""
                 errors_found = False
-
+                
                 for _, row in df.iterrows():
-                    if row['Raider_Self_Out'] == 1 or row['Attacking_Skill'] == 'Defender self out':
+                    if row['Raider_Self_Out'] == 1:
                         if not _is_empty(row['QoD_Skill']) or not _is_empty(row['Counter_Action_Skill']):
-
-                            if row['Raider_Self_Out'] == 1:
-                                print(f"❌ {row['Event_Number']}: QoD_Skill and Counter_Action_Skill must be empty when 'Raider Self Out'.\n")
-                            
-                            if row['Attacking_Skill'] == 'Defender self out':
-                                print(f"❌ {row['Event_Number']}: QoD_Skill and Counter_Action_Skill must be empty when 'Defender Self Out'.\n")
+                            print(f"❌ {row['Event_Number']}: QoD_Skill and Counter_Action_Skill must be empty when 'Raider Self Out'.\n")
                             errors_found = True
-
+                            
                 if not errors_found:
                     print("QC 28: ✅ All rows are Valid.\n")
 
@@ -1243,7 +1236,7 @@ if uploaded_file:
                 qc_25_defender_self_out_rules(df)
                 qc_26_defensive_skill_needs_defender(df)
                 qc_27_bonus_restriction_by_defender_count(df)
-                qc_28_raider_self_out_or_def_self_out_check(df)
+                qc_28_raider_self_out_check(df)
 
             run_all_quality_checks(df)
 
