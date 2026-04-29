@@ -15,8 +15,8 @@ st.markdown(
     '<h1>Kabaddi Data Processing & QC tool - <span style="color:yellow;"> Non PKL (LongoMatch) </span></h1>',
     unsafe_allow_html=True)
 
-# --- Upload CSV ---
-uploaded_file = st.file_uploader("Upload raw Kabaddi CSV, process it, and download the cleaned output.", type=["csv"])
+# --- Upload RAW CSV ---
+uploaded_file = st.file_uploader("Upload raw Kabaddi CSV, process it, and download the cleaned Excel file.", type=["csv"])
 
 if uploaded_file:
     # Store raw_df in session_state for safe access
@@ -655,6 +655,26 @@ if uploaded_file:
                 return [c for c in columns if _is_empty(getattr(row, c))]
 
 
+            def _col_is_empty(series: pd.Series) -> pd.Series:
+                """Vectorized: True where value is NaN, None, or blank/whitespace string."""
+                return series.isna() | series.astype(str).str.strip().eq("")
+
+
+            def _col_is_not_empty(series: pd.Series) -> pd.Series:
+                """Vectorized: True where value is NOT empty."""
+                return ~_col_is_empty(series)
+
+
+            def _all_cols_empty(df_sub: pd.DataFrame, columns: list[str]) -> pd.Series:
+                """True for rows where ALL listed columns are empty."""
+                return pd.DataFrame({c: _col_is_empty(df_sub[c]) for c in columns}).all(axis=1)
+
+
+            def _any_col_not_empty(df_sub: pd.DataFrame, columns: list[str]) -> pd.Series:
+                """True for rows where AT LEAST ONE listed column is not empty."""
+                return ~_all_cols_empty(df_sub, columns)
+
+
             def _extract_raid_number(value) -> int | None:
                 """Extract the integer from strings like 'Raid 5'. Returns None if invalid."""
                 if not isinstance(value, str):
@@ -685,15 +705,12 @@ if uploaded_file:
 
 
             def qc_02_empty_columns(df) -> None:
-                """QC 2: Key columns must not be empty / NA."""
+                """QC 2: Key columns must not be Empty."""
                 required_cols = [
-                    "Raid_Length", "Outcome", "Bonus", "All_Out", "Half",
-                    "Raid_Number", "Raider_Name", "Number_of_Defenders",
-                    "Technical_Point_Raiding_Team", "Technical_Point_Defending_Team",
-                    "Tie_Break_Raids",
+                    "Raid_Length", "Outcome", "Bonus", "All_Out", "Half","Raid_Number", "Raider_Name", "Number_of_Defenders",
+                    "Technical_Point_Raiding_Team", "Technical_Point_Defending_Team", "Tie_Break_Raids",
                 ]
-                normalised = df[required_cols].astype(str).apply(lambda c: c.str.strip().str.lower())
-                empty_mask = df[required_cols].isna() | normalised.isin(["", "na", "nan"])
+                empty_mask = pd.DataFrame({c: _col_is_empty(df[c]) for c in required_cols})
                 invalid = empty_mask.any(axis=1)
 
                 if invalid.any():
@@ -705,15 +722,15 @@ if uploaded_file:
 
 
             def qc_03_empty_outcome_constraints(df) -> None:
-                """QC 3: When Outcome = 'Empty', related columns & flags must also be empty/zero."""
+                """QC 3: When Outcome = 'Empty', related columns must be Empty."""
                 must_be_empty = [
                     "Defender_1_Name", "Defender_2_Name", "Defender_3_Name",
                     "Defender_4_Name", "Defender_5_Name", "Defender_6_Name",
-                    "Defender_7_Name", "Attacking_Skill", "Defensive_Skill",
-                    "Counter_Action_Skill", "Zone_of_Action", "Defender_Position", "QoD_Skill",
+                    "Defender_7_Name", "Zone_of_Action", "Attacking_Skill",
+                    "Defensive_Skill", "Counter_Action_Skill","Defender_Position", "QoD_Skill",
                 ]
                 is_outcome_empty = df["Outcome"] == "Empty"
-                all_blank = df[must_be_empty].replace("", pd.NA).isna().all(axis=1)
+                all_blank = _all_cols_empty(df, must_be_empty)
                 invalid = is_outcome_empty & ~(
                     all_blank
                     & (df["All_Out"] == 0)
@@ -742,22 +759,22 @@ if uploaded_file:
 
 
             def qc_04_missing_required_fields(df) -> None:
-                """QC 4: Successful/Unsuccessful with Bonus=No & Raider_Self_Out=0 must have key fields."""
+                """QC 4: Successful/Unsuccessful, Bonus=No & Raider Self Out=0 must have following fields."""
                 check_cols = ["Defender_1_Name", "Number_of_Defenders", "Zone_of_Action"]
                 context = (
                     df["Outcome"].isin(["Successful", "Unsuccessful"])
                     & (df["Bonus"] == "No")
                     & (df["Raider_Self_Out"] == 0)
                 )
-                all_present = df[check_cols].notna().all(axis=1)
-                invalid = context & ~all_present
+                some_missing = pd.DataFrame({c: _col_is_empty(df[c]) for c in check_cols}).any(axis=1)
+                invalid = context & some_missing
 
                 if invalid.any():
                     for idx, row in df.loc[invalid].iterrows():
-                        missing = row[check_cols].isna()
+                        missing = [c for c in check_cols if _is_empty(row[c])]
 
                         print(f"❌ {row['Event_Number']}: When Outcome='{row['Outcome']}', Bonus='No', "
-                              f"Raider_Self_Out='No' ⟶ Missing: {', '.join(missing[missing].index.tolist())}.\n")
+                              f"Raider Self Out='No' ⟶ Missing: {', '.join(missing)}.\n")
                 else:
                     print("QC 4: ✅ All rows are Valid.\n")
 
@@ -828,7 +845,7 @@ if uploaded_file:
 
 
             def qc_09_points_match(df) -> None:
-                """QC 9: Sum of point sub-columns must equal the total points column."""
+                """QC 9: Sum of Team Point column must equal to Sub Points columns."""
 
                 def _check(cols: list[str], total_col: str, label: str) -> None:
                     calculated = df[cols].sum(axis=1)
@@ -851,7 +868,7 @@ if uploaded_file:
 
 
             def qc_10_outcome_needs_points(df) -> None:
-                """QC 10: Successful/Unsuccessful outcomes must have at least some points."""
+                """QC 10: Successful/Unsuccessful must have at least one point."""
 
                 def _check(outcome: str, cols: list[str], team: str) -> None:
                     has_outcome = df["Outcome"].eq(outcome)
@@ -884,7 +901,7 @@ if uploaded_file:
 
                 bad_capture = df["Defending_Capture_Points"] > 1
                 if bad_capture.any():
-                    for msg in "❌ " + df.loc[bad_capture, "Event_Number"].astype(str) + "  Check 'Defending Capture Points'\n":
+                    for msg in "❌ " + df.loc[bad_capture, "Event_Number"].astype(str) + "  Check 'Defensive Points'\n":
                         print(msg)
                     errors_found = True
 
@@ -914,66 +931,57 @@ if uploaded_file:
 
 
             def qc_14_skill_consistency(df) -> None:
-                """QC 14: Successful, No Bonus, No Defender Self-Out → validate skill column combinations."""
+                """QC 14: Skill validation with 3 Skill columns."""
+
                 subset = df[
                     (df["Outcome"] == "Successful")
                     & (df["Bonus"] == "No")
                     & (df["Number_of_Defenders_Self_Out"] == 0)
                 ].copy()
 
-                for col in ["Attacking_Skill", "Defensive_Skill", "Counter_Action_Skill"]:
-                    subset[col] = subset[col].replace("", pd.NA)
+                atk_na = _col_is_empty(subset["Attacking_Skill"])
+                def_na = _col_is_empty(subset["Defensive_Skill"])
+                ca_na = _col_is_empty(subset["Counter_Action_Skill"])
 
-                atk_na = subset["Attacking_Skill"].isna()
-                def_na = subset["Defensive_Skill"].isna()
-                ca_na = subset["Counter_Action_Skill"].isna()
-
-                # Suspect: attacking missing while one of the other two is also missing
-                cond1 = atk_na & (def_na | ca_na)
-                # Suspect: attacking present while one of the other two is also present
-                cond2 = ~atk_na & (~def_na | ~ca_na)
-                # All three empty
+                # Case 1: All empty
                 all_empty = atk_na & def_na & ca_na
-
-                suspect = subset.loc[cond1 | cond2, "Event_Number"]
                 empty_rows = subset.loc[all_empty, "Event_Number"]
 
-                if not suspect.empty:
-                    for event in suspect:
-                        print(f"⚠️ {event}: 'Attacking_Skill' & 'Defensive & Counter_Action_Skill' - all 3 Present Check once.\n")
+                # Case 2: Defensive–Counter mismatch
+                mismatch_def_ca = def_na != ca_na
+                mismatch_rows = subset.loc[mismatch_def_ca, "Event_Number"]
 
-                if not empty_rows.empty:
-                    for event in empty_rows:
-                        print(f"❌ {event}: All three skill columns are empty. Please check.\n")
-
-                if suspect.empty and empty_rows.empty:
+                if empty_rows.empty and mismatch_rows.empty:
                     print("QC 14: ✅ All rows are Valid.\n")
+                    return
+
+                for event in empty_rows:
+                    print(f"❌ {event}: All Skill columns are Empty.\n")
+
+                for event in mismatch_rows:
+                    print(f"❌ {event}: Defensive & Counter Skill must both be filled or both be empty.\n")
 
 
             def qc_15_unsuccessful_needs_defensive_skill(df) -> None:
                 """QC 15: Unsuccessful outcome must have a non-empty Defensive_Skill."""
-                bad = df[
-                    (df["Outcome"] == "Unsuccessful")
-                    & (df["Defensive_Skill"].isna() | (df["Defensive_Skill"].str.strip() == ""))
-                ]
+
+                bad = df[(df["Outcome"] == "Unsuccessful") & _col_is_empty(df["Defensive_Skill"])]
                 if not bad.empty:
                     for _, row in bad.iterrows():
-                        print(f"❌ {row['Event_Number']}: Outcome is 'Unsuccessful' and 'Defensive_Skill' is empty.\n")
+                        print(f"❌ {row['Event_Number']}: Outcome is 'Unsuccessful' and 'Defensive_Skill' is Empty.\n")
                 else:
                     print("QC 15: ✅ All rows are Valid.\n")
 
 
             def qc_16_defensive_counter_symmetry(df) -> None:
                 """QC 16: Successful + No Bonus + Raiding_Touch > 0 → Defensive & Counter skills must both be present or both empty."""
-                mask = (
-                    (df["Outcome"] == "Successful")
-                    & (df["Bonus"] == "No")
-                    & (df["Raiding_Touch_Points"] > 0)
-                )
+
+                mask = ((df["Outcome"] == "Successful") & (df["Bonus"] == "No") & (df["Raiding_Touch_Points"] > 0))
+
                 filtered = df[mask]
                 def_empty = filtered["Defensive_Skill"].apply(_is_empty)
                 ca_empty = filtered["Counter_Action_Skill"].apply(_is_empty)
-                violations = filtered[def_empty ^ ca_empty]
+                violations = filtered[def_empty ^ ca_empty]    # exclusive OR (XOR)
 
                 if violations.empty:
                     print("QC 16: ✅ All rows are Valid.\n")
@@ -984,8 +992,8 @@ if uploaded_file:
 
             def qc_17_defender_position_alignment(df) -> None:
                 """QC 17: Defender present ↔ Defender_Position present (both ways)."""
-                has_defender = df["Defender_1_Name"].notna()
-                has_position = df["Defender_Position"].notna() & (df["Defender_Position"] != "")
+                has_defender = _col_is_not_empty(df["Defender_1_Name"])
+                has_position = _col_is_not_empty(df["Defender_Position"])
 
                 fail_no_pos = df[has_defender & ~has_position]
                 fail_no_def = df[~has_defender & has_position]
@@ -1003,8 +1011,8 @@ if uploaded_file:
                 """QC 18: When Outcome = Unsuccessful, Defensive_Skill ↔ QoD_Skill must be aligned."""
                 excluded = {"Defender self out", "Raider self out"}
                 is_unsuccessful = df["Outcome"] == "Unsuccessful"
-                has_def = df["Defensive_Skill"].fillna("").str.strip() != ""
-                has_qod = df["QoD_Skill"].fillna("").str.strip() != ""
+                has_def = _col_is_not_empty(df["Defensive_Skill"])
+                has_qod = _col_is_not_empty(df["QoD_Skill"])
                 not_excluded = ~df["Defensive_Skill"].isin(excluded)
 
                 type1 = df[is_unsuccessful & has_def & not_excluded & ~has_qod]
@@ -1022,10 +1030,9 @@ if uploaded_file:
             def qc_19_bonus_type_consistency(df) -> None:
                 """QC 19: Bonus = 'Yes' requires non-empty Type_of_Bonus, and vice versa."""
                 bonus = df["Bonus"].astype(str).str.strip().str.title()
-                type_bonus = df["Type_of_Bonus"].astype(str).str.strip()
 
-                yes_missing = (bonus == "Yes") & ((type_bonus == "") | df["Type_of_Bonus"].isna())
-                no_present = (bonus == "No") & (type_bonus != "") & df["Type_of_Bonus"].notna()
+                yes_missing = (bonus == "Yes") & _col_is_empty(df["Type_of_Bonus"])
+                no_present = (bonus == "No") & _col_is_not_empty(df["Type_of_Bonus"])
 
                 failed = df[yes_missing | no_present]
 
@@ -1036,15 +1043,15 @@ if uploaded_file:
                         b = str(row["Bonus"]).strip().title()
                         t = row["Type_of_Bonus"]
                         if b == "Yes" and _is_empty(t):
-                            print(f"❌ {row['Event_Number']}: Bonus is 'Yes' but Type_of_Bonus is missing or empty.\n")
+                            print(f"❌ {row['Event_Number']}: Bonus is 'Yes' but Type_of_Bonus is empty.\n")
                         elif b == "No" and not _is_empty(t):
-                            print(f"❌ {row['Event_Number']}: Bonus is 'No' but Type_of_Bonus should be null.\n")
+                            print(f"❌ {row['Event_Number']}: Bonus is 'No' but Type_of_Bonus should be empty.\n")
 
 
             def qc_20_zone_required_for_outcome(df) -> None:
                 """QC 20: Successful / Unsuccessful must have a non-empty Zone_of_Action."""
                 has_outcome = df["Outcome"].isin(["Successful", "Unsuccessful"])
-                zone_empty = df["Zone_of_Action"].isna() | (df["Zone_of_Action"].astype(str).str.strip() == "")
+                zone_empty = _col_is_empty(df["Zone_of_Action"])
                 bad = df[has_outcome & zone_empty]
 
                 if not bad.empty:
@@ -1055,21 +1062,22 @@ if uploaded_file:
 
 
             def qc_21_raider_self_out_columns_empty(df) -> None:
-                """QC 21: When Defensive_Skill = 'Raider self out', specific columns must be empty."""
+                """QC 21: When Defensive_Skill = 'Raider self out' and no defenders self-out, specific columns must be empty."""
                 cols_to_check = ["QoD_Skill", "Defender_1_Name", "Defender_Position", "Counter_Action_Skill"]
 
+                # Conditions: 
                 is_raider_self_out = df["Defensive_Skill"].eq("Raider self out")
-                is_defender_self_out = df["Attacking_Skill"].eq("Defender self out")
-                check_mask = is_raider_self_out & ~is_defender_self_out
+                no_defender_self_out = df["Number_of_Defenders_Self_Out"].fillna(0).eq(0) # NaN
 
-                non_empty = df[cols_to_check].notna() & df[cols_to_check].ne("")
-                violations = check_mask & non_empty.any(axis=1)
-
+                # Combine conditions
+                check_mask = is_raider_self_out & no_defender_self_out
+                violations = check_mask & _any_col_not_empty(df, cols_to_check)
                 flagged = df[violations]
+
                 if not flagged.empty:
                     for _, row in flagged.iterrows():
                         bad_cols = _non_empty_cols(row, cols_to_check)
-                        print(f"❌ {row['Event_Number']}: Found values in {', '.join(bad_cols)} — must be empty.\n")
+                        print(f"❌ {row['Event_Number']}: Found values in {', '.join(bad_cols)} — must be Empty.\n")
                 else:
                     print("QC 21: ✅ All rows are Valid.\n")
 
@@ -1087,9 +1095,8 @@ if uploaded_file:
                 for _, row in filtered.iterrows():
                     for col in skill_cols:
                         if not _is_empty(row[col]):
-                            print(
-                                f"❌ {row['Event_Number']}: When Outcome='Successful', Bonus='Yes', and "
-                                f"Raiding_Team_Points = 1, all skill columns must be empty. But '{col}' has value '{row[col]}'.\n")
+                            print(f"❌ {row['Event_Number']}: When Outcome='Successful', Bonus='Yes', "
+                                  f"Attacking Points = 1, all skill columns must be Empty. But '{col}' has value '{row[col]}'.\n")
                             issues_found = True
 
                 if not issues_found:
@@ -1098,8 +1105,8 @@ if uploaded_file:
 
             def qc_23_qod_outcome_alignment(df) -> None:
                 """QC 23: QoD_Skill & Outcome alignment — QoD without Defensive, or QoD on Successful."""
-                has_def = df["Defensive_Skill"].fillna("").str.strip() != ""
-                has_qod = df["QoD_Skill"].fillna("").str.strip() != ""
+                has_def = _col_is_not_empty(df["Defensive_Skill"])
+                has_qod = _col_is_not_empty(df["QoD_Skill"])
                 is_success = df["Outcome"] == "Successful"
 
                 type1 = df[has_qod & ~has_def]
@@ -1111,7 +1118,7 @@ if uploaded_file:
                     if not type1.empty:
                         print(f"❌ {type1['Event_Number'].tolist()} → QoD_Skill present but Defensive_Skill missing.\n")
                     if not type2.empty:
-                        print(f"❌ {type2['Event_Number'].tolist()} → Raid is Successful but QoD_Skill is present, should be None.\n")
+                        print(f"❌ {type2['Event_Number'].tolist()} → Raid is Successful but QoD_Skill must be Empty.\n")
 
 
             def qc_24_half_sequence(df) -> None:
@@ -1201,13 +1208,36 @@ if uploaded_file:
                     print("QC 28: ✅ All rows are Valid.\n")
 
 
+            def qc_29_tie_break_raids_check(df) -> None:
+                """QC 29: When Tie_Break_Raids = 'Yes', Number_of_Defenders must be 7 and Raid_Number must be 1."""
+                
+                # 1. Combine conditions into a single filter to find all violating rows at once
+                flagged = df[(df["Tie_Break_Raids"] == "Yes") & 
+                             ((df["Number_of_Defenders"].fillna(-1) != 7) | (df["Raid_Number"].fillna(-1) != 1))]
+
+                # 2. Early return if everything is perfect
+                if flagged.empty:
+                    print("QC 29: ✅ All rows are Valid.\n")
+                    return
+
+                # 3. Print specific errors for flagged rows concisely 
+                for _, row in flagged.iterrows():
+                    errors = [
+                        msg for condition, msg in [
+                            (row["Number_of_Defenders"] != 7, "Number_of_Defenders must be 7"),
+                            (row["Raid_Number"] != 1, "Raid_Number must be 1")
+                        ] if condition]
+
+                    print(f"❌ {row['Event_Number']}: {' and '.join(errors)}.\n")
+
+
             # ---------------------------------------------
             #  Main Runner
             # ---------------------------------------------
 
             def run_all_quality_checks(df: pd.DataFrame) -> None:
 
-                """Execute all 28 quality checks in order on *df*."""
+                """Execute all 29 quality checks in order on *df*."""
 
                 qc_01_event_sequence(df)
                 qc_02_empty_columns(df)
@@ -1237,11 +1267,11 @@ if uploaded_file:
                 qc_26_defensive_skill_needs_defender(df)
                 qc_27_bonus_restriction_by_defender_count(df)
                 qc_28_raider_self_out_check(df)
+                qc_29_tie_break_raids_check(df)
 
             run_all_quality_checks(df)
 
             # ──────────────────────────────────────────────           
-            # Event_Number formatting
             df['Event_Number'] = (df['Event_Number'].str.extract(r'(\d+)')[0].astype(int).map(lambda x: f"E{x:03d}"))
             # ──────────────────────────────────────────────
 
