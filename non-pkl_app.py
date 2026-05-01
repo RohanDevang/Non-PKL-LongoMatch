@@ -1192,44 +1192,44 @@ if uploaded_file:
 
                 if not qc_failed:
                     print("QC 27: ✅ All rows are Valid.\n")
+                    
 
-            
             def qc_28_raider_self_out_check(df) -> None:
-                """QC 28: When Raider_Self_Out = 1, QoD_Skill and Counter_Action_Skill must be empty."""
+                """QC 28: When Raider_Self_Out = 1: QoD_Skill and Counter_Action_Skill must be empty, Attacking_Skill must be 'Defender self out' or empty"""
                 errors_found = False
-                
+            
                 for _, row in df.iterrows():
-                    if row['Raider_Self_Out'] == 1:
-                        if not _is_empty(row['QoD_Skill']) or not _is_empty(row['Counter_Action_Skill']):
-                            print(f"❌ {row['Event_Number']}: QoD_Skill and Counter_Action_Skill must be empty when 'Raider Self Out'.\n")
-                            errors_found = True
-                            
+                    if row['Raider_Self_Out'] != 1:
+                        continue
+                    qod_invalid = not _is_empty(row['QoD_Skill'])
+                    counter_invalid = not _is_empty(row['Counter_Action_Skill'])
+                    attacking = row['Attacking_Skill']
+                    attacking_invalid = not (_is_empty(attacking) or attacking == 'Defender self out')
+            
+                    if any([qod_invalid, counter_invalid, attacking_invalid]):
+                        print(f"❌ {row['Event_Number']}: When 'Raider Self Out' -> "
+                            " QoD_Skill & Counter_Action_Skill must be empty, and Attacking_Skill must be 'Defender self out' or empty.\n")
+                        errors_found = True
+            
                 if not errors_found:
                     print("QC 28: ✅ All rows are Valid.\n")
 
 
             def qc_29_tie_break_raids_check(df) -> None:
                 """QC 29: When Tie_Break_Raids = 'Yes', Number_of_Defenders must be 7 and Raid_Number must be 1."""
-                
-                # 1. Combine conditions into a single filter to find all violating rows at once
-                flagged = df[(df["Tie_Break_Raids"] == "Yes") & 
-                             ((df["Number_of_Defenders"].fillna(-1) != 7) | (df["Raid_Number"].fillna(-1) != 1))]
-
-                # 2. Early return if everything is perfect
+            
+                mask = ((df["Tie_Break_Raids"] == "Yes") &
+                       ((df["Number_of_Defenders"] != 7) | (df["Raid_Number"] != 1)))
+                flagged = df[mask]
+            
                 if flagged.empty:
                     print("QC 29: ✅ All rows are Valid.\n")
                     return
-
-                # 3. Print specific errors for flagged rows concisely 
                 for _, row in flagged.iterrows():
-                    errors = [
-                        msg for condition, msg in [
-                            (row["Number_of_Defenders"] != 7, "Number_of_Defenders must be 7"),
-                            (row["Raid_Number"] != 1, "Raid_Number must be 1")
-                        ] if condition]
-
-                    print(f"❌ {row['Event_Number']}: {' and '.join(errors)}.\n")
-
+                    msg = " and ".join(filter(None, [
+                        "Number_of_Defenders must be 7" if row["Number_of_Defenders"] != 7 else None,
+                        "Raid_Number must be 1" if row["Raid_Number"] != 1 else None]))
+                    print(f"❌ {row['Event_Number']}: {msg}.\n")
 
             # ---------------------------------------------
             #  Main Runner
