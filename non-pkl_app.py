@@ -414,78 +414,50 @@ if uploaded_file:
 
             # ---------------- Raider & Defenders Names ----------------
 
-            # Split by "|" (tolerate spaces), expand to separate columns
-            parts = df['Player'].str.split(r'\s*\|\s*', expand=True)
-
-            # Keep only the names after the dash, strip spaces, and make Title case
-            names = parts.apply(lambda s: s.str.split('-', n=1).str[1].str.strip().str.title())
-
-            # Ensure we have Raider + up to 7 Defenders (add empty cols if needed)
-            needed_cols = 1 + 7  # 1 raider + 7 defenders
-            if names.shape[1] < needed_cols:
-                for _ in range(needed_cols - names.shape[1]):
-                    names[names.shape[1]] = None
-            # or if there are extra columns, drop them
-            names = names.iloc[:, :needed_cols]
-
+            # Split player column
+            names = (df['Player'].str.split(r'\s*\|\s*', expand=True)
+                    .apply(lambda s: s.str.split('-', n=1).str[1].str.strip().str.title()))
+            
+            # Ensure exactly 8 columns (1 raider + 7 defenders)
+            names = names.reindex(columns=range(8))
+            
             # Rename columns
-            names = names.rename(columns={
-                0: 'Raider_Name',
-                1: 'Defender_1_Name',
-                2: 'Defender_2_Name',
-                3: 'Defender_3_Name',
-                4: 'Defender_4_Name',
-                5: 'Defender_5_Name',
-                6: 'Defender_6_Name',
-                7: 'Defender_7_Name'
-            })
-
-            # Drop original and join the new columns
+            names.columns = ['Raider_Name'] + [f'Defender_{i}_Name' for i in range(1, 8)]
+            
+            # Replace original column
             df = df.drop(columns='Player').join(names)
 
             
             # ---------------- Time Update ----------------
-
-            # Strip milliseconds
-            df['Start'] = df['Start'].str.split(',').str[0]
-            df['Stop']  = df['Stop'].str.split(',').str[0]
-
-            # Parse mm:ss or hh:mm:ss into Timedelta
-            def parse_time(t):
-                parts = list(map(int, t.split(':')))
-                if len(parts) == 2:  # mm:ss
-                    return pd.Timedelta(minutes=parts[0], seconds=parts[1])
-                return pd.Timedelta(hours=parts[0], minutes=parts[1], seconds=parts[2])
-
-            df['duration_secs'] = (df['Stop'].apply(parse_time) - df['Start'].apply(parse_time)).dt.total_seconds()
-
-            # Initial duration formatted as mm:ss (will be replaced later)
-            df['Time'] = df['duration_secs'].apply(lambda x: f"{int(x//60):02}:{int(x%60):02}")
-
-            # ------ Sequential Start Time Per Half ------
-
-            # Helper mm:ss → seconds
-            def mmss_to_sec(t):
-                m, s = map(int, t.split(':'))
-                return m*60 + s
-
-            BASE = 19*60 + 59  # 19:59
-
-            df['Seconds'] = df['Time'].map(mmss_to_sec)
-
+            
+            # Remove milliseconds
+            start_str = df['Start'].str.split(',').str[0]
+            stop_str  = df['Stop'].str.split(',').str[0]
+            
+            # Convert mm:ss → hh:mm:ss
+            start = pd.to_timedelta('00:' + start_str)
+            stop  = pd.to_timedelta('00:' + stop_str)
+            
+            # Duration in seconds
+            dur = (stop - start).dt.total_seconds()
+            
+            # ---------------- Sequential Start Time Per Half ----------------
+            
+            BASE = 19 * 60 + 59  # 19:59
+            
             start_map = {}
-
+            
             for half, grp in df.groupby('Half'):
                 remaining = BASE
-                for idx, sec in zip(grp.index, grp['Seconds']):
+                for idx, sec in zip(grp.index, dur.loc[grp.index]):
                     start_map[idx] = remaining
                     remaining = max(0, remaining - sec)
-
-            # Assign final Time
-            df['Time'] = df.index.map(lambda i: f"{start_map[i]//60:02}:{start_map[i]%60:02}")
-
-            # Cleanup
-            df.drop(columns=['duration_secs', 'Seconds', 'Start', 'Stop'], inplace=True)
+            
+            # Final formatted Time
+            df['Time'] = df.index.map(lambda i: f"{int(start_map[i]//60):02}:{int(start_map[i]%60):02}")
+            
+            # Drop original Start/Stop columns
+            df.drop(columns=['Start', 'Stop'], inplace=True)
            
 
             # ---------------- Tie Break Raids ----------------
@@ -590,14 +562,10 @@ if uploaded_file:
             df["Raiding_Bonus_Points"] = (df["Bonus"] == "Yes").astype(int)
 
             # Raiding_Touch_Points
-            defender_cols = ['Defender_1_Name', 'Defender_2_Name', 'Defender_3_Name',
-                            'Defender_4_Name', 'Defender_5_Name', 'Defender_6_Name', 'Defender_7_Name']
-            
-            df['Raiding_Touch_Points'] = 0
-            mask = df['Outcome'] == 'Successful'
+            defender_cols = [f'Defender_{i}_Name' for i in range(1, 8)]
 
-            df.loc[mask, 'Raiding_Touch_Points'] = (
-                df.loc[mask, defender_cols].notna().sum(axis=1) - df.loc[mask, 'Number_of_Defenders_Self_Out'])
+            df['Raiding_Touch_Points'] = ((df[defender_cols].notna().sum(axis=1) - df['Number_of_Defenders_Self_Out'])
+                .where(df['Outcome'] == 'Successful', 0))
             
             # Convert 'All_Out' column to numeric directly
             df['All_Out'] = pd.to_numeric(df['All_Out'], errors='coerce')
