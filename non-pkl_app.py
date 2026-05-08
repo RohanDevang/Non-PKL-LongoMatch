@@ -549,7 +549,7 @@ if uploaded_file:
             
                 # 10. Metadata
                 "Event", "Technical_Point_Raiding_Team", "Technical_Point_Defending_Team",
-                "All_Out", "Video_Link", "Tie_Break_Raids"
+                "All_Out", "Tie_Break_Raids", "Video_Link"
             ]
             
             # Apply the new column order
@@ -616,11 +616,6 @@ if uploaded_file:
             def _non_empty_cols(row, columns: list[str]) -> list[str]:
                 """Return column names from *columns* that have a non-empty value in *row*."""
                 return [c for c in columns if not _is_empty(getattr(row, c))]
-
-
-            def _empty_cols(row, columns: list[str]) -> list[str]:
-                """Return column names from *columns* that are empty in *row*."""
-                return [c for c in columns if _is_empty(getattr(row, c))]
 
 
             def _col_is_empty(series: pd.Series) -> pd.Series:
