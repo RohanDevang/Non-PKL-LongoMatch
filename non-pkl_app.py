@@ -105,7 +105,6 @@ if uploaded_file:
             # This part now uses the 'df' from above instead of reading a new file.
             # =========================================================================
             
-
             # ---------------- Drop unused columns ----------------
             df.drop(['Time', 'Team'], axis=1, inplace=True, errors='ignore')
 
@@ -135,10 +134,14 @@ if uploaded_file:
             # ------ Number_of_Defenders ------
 
             defender_cols = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7']
+            
             for idx, col in enumerate(defender_cols, 1):
+                
                 df[col] = pd.to_numeric(df[col].astype(str).str.strip().replace('', '0'),
                                         errors='coerce').fillna(0).astype(int)
+                
                 df[col] = df[col].apply(lambda x: idx if x == 1 else 0)
+
             df['Number_of_Defenders'] = df[defender_cols].sum(axis=1).astype(int)
             df.drop(columns=defender_cols, inplace=True)
 
@@ -155,8 +158,7 @@ if uploaded_file:
             df['Unsuccessful'] = df['Unsuccessful'].map({1: 'Unsuccessful', 0: ''})
 
             # 3. Safely join non-empty labels
-            df['Outcome'] = df[['Successful', 'Empty', 'Unsuccessful']].apply(
-                lambda row: ' '.join(val for val in row if val != ''), axis=1)
+            df['Outcome'] = df[['Successful', 'Empty', 'Unsuccessful']].apply(lambda row: ' '.join(filter(None, row)), axis=1)
 
             df.drop(['Successful', 'Empty', 'Unsuccessful'], axis=1, inplace=True)
 
@@ -197,8 +199,7 @@ if uploaded_file:
                 df[col] = df[col].map({1: col, 0: ''})
 
             # Join them safely
-            df['Type_of_Bonus'] = df[bonus_cols].apply(
-                lambda x: ' '.join(v for v in x if v != ''), axis=1)
+            df['Type_of_Bonus'] = df[bonus_cols].apply(lambda x: ' '.join(filter(None, x)), axis=1)
 
             # Drop original raw bonus columns
             df.drop(columns=bonus_cols + ['No Bonus'], inplace=True, errors='ignore')
@@ -220,8 +221,7 @@ if uploaded_file:
                 df[col] = df[col].map({1: col, 0: ''})
 
             # Join zone names cleanly
-            df['Zone_of_Action'] = df[zone_cols].apply(
-                lambda x: ' '.join(v for v in x if v != ''), axis=1)
+            df['Zone_of_Action'] = df[zone_cols].apply(lambda x: ' '.join(filter(None, x)), axis=1)
 
             df.drop(columns=zone_cols, inplace=True)
 
@@ -271,8 +271,7 @@ if uploaded_file:
                 df[col] = df[col].map({1: col, 0: ''})
 
             # 3. Join all non-empty skills into a single string
-            df['Attacking_Skill'] = df[att_skill_cols].apply(
-            lambda x: ', '.join([v for v in x if v != '']).strip(), axis=1)
+            df['Attacking_Skill'] = df[att_skill_cols].apply(lambda x: ', '.join(filter(None, x)), axis=1)
 
             df.drop(columns=att_skill_cols, inplace=True)
 
@@ -292,9 +291,8 @@ if uploaded_file:
                 df[col] = df[col].map({1: col, 0: ''})
 
             # 3. Join all non-empty skills into a single string
-            df['Defensive_Skill'] = df[ds_skill_cols].apply(
-                lambda x: ', '.join([v for v in x if v != '']).strip(), axis=1)
-
+            df['Defensive_Skill'] = df[ds_skill_cols].apply(lambda x: ', '.join(filter(None, x)), axis=1)
+   
             df.drop(columns=ds_skill_cols, inplace=True)
 
 
@@ -324,7 +322,7 @@ if uploaded_file:
                 df[col] = df[col].map({1: col, 0: ''})
 
             # 3. Join all non-empty skills into a single string
-            df['Counter_Action_Skill'] = df[ca_cols].apply(lambda x: ', '.join([v for v in x if v != '']).strip(), axis=1)
+            df['Counter_Action_Skill'] = df[ca_cols].apply(lambda x: ', '.join(filter(None, x)), axis=1)
 
             df.drop(columns=ca_cols, inplace=True)
 
@@ -343,7 +341,7 @@ if uploaded_file:
                 df[col] = df[col].map({1: col, 0: ''})
 
             # 3. Join all non-empty skills into a single string
-            df['Defender_Position'] = df[def_pos_cols].apply(lambda x: ', '.join([v for v in x if v != '']).strip(), axis=1)
+            df['Defender_Position'] = (df[def_pos_cols].apply(lambda row: ', '.join(filter(None, row)), axis=1))
 
             df.drop(columns=def_pos_cols, inplace=True)
 
@@ -361,7 +359,7 @@ if uploaded_file:
                 df[col] = df[col].map({1: col, 0: ''})
 
             # 3. Join all non-empty skills into a single string
-            df['QoD_Skill'] = df[qod_cols].apply(lambda x: ', '.join([v for v in x if v != '']).strip(), axis=1)
+            df['QoD_Skill'] = df[qod_cols].apply(lambda x: ', '.join(filter(None, x)), axis=1)
 
             df.drop(columns=qod_cols, inplace=True)
 
@@ -394,8 +392,7 @@ if uploaded_file:
                 df[col] = df[col].map({1: col, 0: ''})
 
             # 3. Join all non-empty skills into a single string
-            df['Half'] = df[half_cols].apply(
-                lambda x: ', '.join([v for v in x if v != '']).strip(), axis=1)
+            df['Half'] = df[half_cols].apply(lambda x: ', '.join(filter(None, x)), axis=1)
 
             # 4 Remove ' Half'
             df['Half'] = df['Half'].str.replace(' Half', '', regex=False)
@@ -472,8 +469,7 @@ if uploaded_file:
                 df[col] = df[col].map({1: col, 0: ''})
 
             # 3. Join all non-empty skills into a single string
-            df['Tie_Break_Raids'] = df[tie_cols].apply(
-                lambda x: ', '.join([v for v in x if v != '']).strip(), axis=1)
+            df['Tie_Break_Raids'] = df[tie_cols].apply(lambda x: ', '.join(filter(None, x)), axis=1)
 
             df.drop(columns=tie_cols, inplace=True)
 
@@ -671,8 +667,8 @@ if uploaded_file:
                 """QC 2: Key columns must not be Empty."""
                 required_cols = [
                     "Raid_Length", "Outcome", "Bonus", "All_Out", "Half","Raid_Number", "Raider_Name", "Number_of_Defenders",
-                    "Technical_Point_Raiding_Team", "Technical_Point_Defending_Team", "Tie_Break_Raids",
-                ]
+                    "Technical_Point_Raiding_Team", "Technical_Point_Defending_Team", "Tie_Break_Raids"]
+                
                 empty_mask = pd.DataFrame({c: _col_is_empty(df[c]) for c in required_cols})
                 invalid = empty_mask.any(axis=1)
 
@@ -687,11 +683,10 @@ if uploaded_file:
             def qc_03_empty_outcome_constraints(df) -> None:
                 """QC 3: When Outcome = 'Empty', related columns must be Empty."""
                 must_be_empty = [
-                    "Defender_1_Name", "Defender_2_Name", "Defender_3_Name",
-                    "Defender_4_Name", "Defender_5_Name", "Defender_6_Name",
-                    "Defender_7_Name", "Zone_of_Action", "Attacking_Skill",
-                    "Defensive_Skill", "Counter_Action_Skill","Defender_Position", "QoD_Skill",
-                ]
+                    "Defender_1_Name", "Defender_2_Name", "Defender_3_Name", "Defender_4_Name", "Defender_5_Name",
+                    "Defender_6_Name","Defender_7_Name", "Zone_of_Action", "Attacking_Skill",
+                    "Defensive_Skill", "Counter_Action_Skill","Defender_Position", "QoD_Skill",]
+                
                 is_outcome_empty = df["Outcome"] == "Empty"
                 all_blank = _all_cols_empty(df, must_be_empty)
                 invalid = is_outcome_empty & ~(
@@ -699,8 +694,7 @@ if uploaded_file:
                     & (df["All_Out"] == 0)
                     & (df["Raiding_Team_Points"] == 0)
                     & (df["Defending_Team_Points"] == 0)
-                    & (df["Bonus"] == "No")
-                )
+                    & (df["Bonus"] == "No"))
 
                 if invalid.any():
                     for row in df.loc[invalid].itertuples(index=False):
@@ -724,11 +718,10 @@ if uploaded_file:
             def qc_04_missing_required_fields(df) -> None:
                 """QC 4: Successful/Unsuccessful, Bonus=No & Raider Self Out=0 must have following fields."""
                 check_cols = ["Defender_1_Name", "Number_of_Defenders", "Zone_of_Action"]
-                context = (
-                    df["Outcome"].isin(["Successful", "Unsuccessful"])
-                    & (df["Bonus"] == "No")
-                    & (df["Raider_Self_Out"] == 0)
-                )
+                
+                context = (df["Outcome"].isin(["Successful", "Unsuccessful"])
+                        & (df["Bonus"] == "No") & (df["Raider_Self_Out"] == 0))
+                
                 some_missing = pd.DataFrame({c: _col_is_empty(df[c]) for c in check_cols}).any(axis=1)
                 invalid = context & some_missing
 
@@ -896,11 +889,7 @@ if uploaded_file:
             def qc_14_skill_consistency(df) -> None:
                 """QC 14: Skill validation with 3 Skill columns."""
 
-                subset = df[
-                    (df["Outcome"] == "Successful")
-                    & (df["Bonus"] == "No")
-                    & (df["Number_of_Defenders_Self_Out"] == 0)
-                ].copy()
+                subset = df[(df["Outcome"] == "Successful") & (df["Bonus"] == "No") & (df["Number_of_Defenders_Self_Out"] == 0)].copy()
 
                 atk_na = _col_is_empty(subset["Attacking_Skill"])
                 def_na = _col_is_empty(subset["Defensive_Skill"])
@@ -972,6 +961,7 @@ if uploaded_file:
 
             def qc_18_defensive_qod_alignment(df) -> None:
                 """QC 18: When Outcome = Unsuccessful, Defensive_Skill ↔ QoD_Skill must be aligned."""
+                
                 excluded = {"Defender self out", "Raider self out"}
                 is_unsuccessful = df["Outcome"] == "Unsuccessful"
                 has_def = _col_is_not_empty(df["Defensive_Skill"])
@@ -1238,52 +1228,43 @@ if uploaded_file:
             df['Event_Number'] = (df['Event_Number'].str.extract(r'(\d+)')[0].astype(int).map(lambda x: f"E{x:03d}"))
             # ──────────────────────────────────────────────
 
-            # Prepare final Excel in memory
+            # Write DataFrame to Excel buffer
             excel_buffer = io.BytesIO()
-            df.to_excel(excel_buffer, index=False, engine='openpyxl')
+            df.to_excel(excel_buffer, index=False, engine="openpyxl")
             excel_buffer.seek(0)
 
-            # ---- Apply Excel formatting ----
+            # Load workbook
             wb = load_workbook(excel_buffer)
             ws = wb.active
 
-            # Freeze Header Row
+            # Freeze header row
             ws.freeze_panes = "A2"
 
             # Styles
-            center_align = Alignment(horizontal="center", vertical="center")
-            # header_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
-            header_font = Font(bold=True)
-            no_border = Border()
+            center = Alignment(horizontal="center", vertical="center")
+            bold = Font(bold=True)
 
-            # Apply styles to all cells
-            for row in ws.iter_rows():
-                for cell in row:
-                    cell.alignment = center_align
-                    cell.border = no_border
+            # Apply styles + auto width
+            for col in ws.columns:
+                max_len = 0
+                col_letter = col[0].column_letter
 
-            # Header styling
-            for cell in ws[1]:
-                # cell.fill = header_fill
-                cell.font = header_font
+                for cell in col:
+                    cell.alignment = center
+                    cell.border = Border()
 
-            # Add filter
+                    if cell.row == 1:
+                        cell.font = bold
+
+                    if cell.value:
+                        max_len = max(max_len, len(str(cell.value)))
+
+                ws.column_dimensions[col_letter].width = min(max_len + 5, 50)
+
+            # Add filters
             ws.auto_filter.ref = ws.dimensions
 
-            # Auto-adjust column width
-            for col in ws.columns:
-                col_letter = col[0].column_letter
-                max_length = len(str(col[0].value)) if col[0].value else 0
-                for cell in col:
-                    try:
-                        if cell.value:
-                            max_length = max(max_length, len(str(cell.value)))
-                    except:
-                        pass
-                adjusted_width = max_length + 5
-                ws.column_dimensions[col_letter].width = min(adjusted_width, 50)
-
-            # Save formatted workbook back to buffer
+            # Save back to buffer
             excel_buffer = io.BytesIO()
             wb.save(excel_buffer)
             excel_buffer.seek(0)
