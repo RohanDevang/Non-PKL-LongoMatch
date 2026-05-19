@@ -91,8 +91,8 @@ if uploaded_file:
                 'Technical Point Raiding','All Out', *(f'RL{i}' for i in range(1, 31)),
                 'Raider self out','Running Bonus','Centre Bonus','LCorner','LIN','LCover','Center',
                 'RCover','RIN','RCorner','Flying Touch','Double Thigh Hold','Flying Reach','Clean','Not Clean',
-                # Extra 4 columns
-                'Yes','No','Z10','Z11','First Half','Second Half','Technical Point Defending']
+                # Extra columns
+                'Z10','Z11','First Half','Second Half','Technical Point Defending','Tie Break Raid']
 
             if len(df.columns) == len(new_col_names):
                 df.columns = new_col_names
@@ -379,25 +379,22 @@ if uploaded_file:
 
 
             # ------ Half ------
-
-            half_cols = ['First Half', 'Second Half']
-
+            
+            half_cols = ['First Half', 'Second Half', 'Tie Break Raid']
+            
             # 1. Clean and convert to integers (0/1)
             for col in half_cols:
-                df[col] = df[col].astype(str).str.strip()  # Remove extra spaces
+                df[col] = df[col].astype(str).str.strip()
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
-
+            
             # 2. Map 1 → skill name, 0 → blank
             for col in half_cols:
-                df[col] = df[col].map({1: col, 0: ''})
-
+                df[col] = df[col].map({1: col.replace(' Half', ''), 0: ''})
+            
             # 3. Join all non-empty skills into a single string
             df['Half'] = df[half_cols].apply(lambda x: ', '.join(filter(None, x)), axis=1)
-
-            # 4 Remove ' Half'
-            df['Half'] = df['Half'].str.replace(' Half', '', regex=False)
-
-            df.drop(columns = half_cols, inplace=True)
+            
+            df.drop(columns=half_cols, inplace=True)
 
 
             # ---------------- Match Metadata // Define IDs ----------------
@@ -442,39 +439,19 @@ if uploaded_file:
             
             # ---------------- Sequential Start Time Per Half ----------------
             
-            BASE = 19 * 60 + 59  # 19:59
-            
+            BASE = 19 * 60 + 59
             start_map = {}
             
-            for half, grp in df.groupby('Half'):
-                remaining = BASE
-                for idx, sec in zip(grp.index, dur.loc[grp.index]):
-                    start_map[idx] = remaining
-                    remaining = max(0, remaining - sec)
+            for _, grp in df[df['Half'].isin(['First', 'Second'])].groupby('Half'):
+                rem = BASE
+                for i, sec in zip(grp.index, dur.loc[grp.index]):
+                    start_map[i], rem = rem, max(0, rem - sec)
             
-            # Final formatted Time
-            df['Time'] = df.index.map(lambda i: f"{int(start_map[i]//60):02}:{int(start_map[i]%60):02}")
+            df['Time'] = [f'{start_map[i]//60:02.0f}:{start_map[i]%60:02.0f}' if i in start_map else '00:00'
+                          for i in df.index]
             
-            # Drop original Start/Stop columns
             df.drop(columns=['Start', 'Stop'], inplace=True)
            
-
-            # ---------------- Tie Break Raids ----------------
-
-            tie_cols = ['Yes', 'No']
-            for col in tie_cols:
-                df[col] = df[col].astype(str).str.strip()  # Remove extra spaces
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
-
-            # 2. Map 1 → skill name, 0 → blank
-            for col in tie_cols:
-                df[col] = df[col].map({1: col, 0: ''})
-
-            # 3. Join all non-empty skills into a single string
-            df['Tie_Break_Raids'] = df[tie_cols].apply(lambda x: ', '.join(filter(None, x)), axis=1)
-
-            df.drop(columns=tie_cols, inplace=True)
-
             
             # ---------------- New Columns ----------------
             new_columns = [
@@ -547,7 +524,7 @@ if uploaded_file:
             
                 # 10. Metadata
                 "Event", "Technical_Point_Raiding_Team", "Technical_Point_Defending_Team",
-                "All_Out", "Tie_Break_Raids", "Video_Link"
+                "All_Out", "Video_Link"
             ]
             
             # Apply the new column order
@@ -1157,23 +1134,6 @@ if uploaded_file:
                 if not errors_found:
                     print("QC 28: ✅ All rows are Valid.\n")
 
-
-            def qc_29_tie_break_raids_check(df) -> None:
-                """QC 29: When Tie_Break_Raids = 'Yes', Number_of_Defenders must be 7 and Raid_Number must be 1."""
-            
-                mask = ((df["Tie_Break_Raids"] == "Yes") &
-                       ((df["Number_of_Defenders"] != 7) | (df["Raid_Number"] != 1)))
-                flagged = df[mask]
-            
-                if flagged.empty:
-                    print("QC 29: ✅ All rows are Valid.\n")
-                    return
-                for _, row in flagged.iterrows():
-                    msg = " and ".join(filter(None, [
-                        "'Number of Defenders' must be 7" if row["Number_of_Defenders"] != 7 else None,
-                        "'Raid Number' must be 1" if row["Raid_Number"] != 1 else None]))
-                    print(f"❌ {row['Event_Number']}: {msg}.\n")
-
             # ---------------------------------------------
             #  Main Runner
             # ---------------------------------------------
@@ -1210,7 +1170,6 @@ if uploaded_file:
                 qc_26_defensive_skill_needs_defender(df)
                 qc_27_bonus_restriction_by_defender_count(df)
                 qc_28_raider_self_out_check(df)
-                qc_29_tie_break_raids_check(df)
 
             run_all_quality_checks(df)
 
