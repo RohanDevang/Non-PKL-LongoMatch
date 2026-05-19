@@ -1044,21 +1044,39 @@ if uploaded_file:
 
 
             def qc_24_half_sequence(df) -> None:
-                """QC 24: Half column must start with 'First' and never go back from 'Second' to 'First'."""
+                """QC 24: Validate Half sequence, values, and minimum 10 "Tie Break Raid" count."""
+
                 errors_found = False
                 last_val = "First"
 
+                valid_values = ("First", "Second", "Tie Break Raid")
+
                 for i, (val, evt) in enumerate(zip(df["Half"], df["Event_Number"])):
+
                     if i == 0 and val != "First":
                         print(f"❌ {evt}: Sequence must start with 'First'.\n")
                         errors_found = True
+
                     elif last_val == "Second" and val == "First":
                         print(f"❌ {evt}: Wrong value in 'Half'.\n")
                         errors_found = True
-                    elif val not in ("First", "Second"):
+
+                    elif last_val == "First" and val == "Tie Break Raid":
+                        print(f"❌ {evt}: Wrong value in 'Half'.\n")
+                        errors_found = True
+
+                    elif val not in valid_values:
                         print(f"❌ {evt}: Invalid value in 'Half' column.\n")
                         errors_found = True
+
                     last_val = val
+
+                # Tie Break Raid minimum occurrence validation
+                tie_break_count = (df["Half"] == "Tie Break Raid").sum()
+
+                if 0 < tie_break_count < 10:
+                    print(f"❌ 'Tie Break Raid' appears only {tie_break_count} times. Minimum required is 10.\n")
+                    errors_found = True
 
                 if not errors_found:
                     print("QC 24: ✅ All rows are Valid.\n")
